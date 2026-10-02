@@ -122,34 +122,28 @@ st.markdown("""
       padding-bottom: 1.5rem !important;
   }
   input, textarea, [data-baseweb="select"] * { font-size: 16px !important; }
-  .ki-contact {
-      margin-left: auto; flex-shrink: 0; text-decoration: none !important;
-      color: #BF5700 !important; border: 1.5px solid #BF5700; border-radius: 18px;
-      padding: 5px 12px; font-size: 14px; white-space: nowrap; line-height: 1.2;
-  }
   .ki-footer { text-align: center; font-size: 13px; color: #5F6B76; margin-top: 28px;
                padding-top: 12px; border-top: 1px solid #E2D3BD; line-height: 1.7; }
   .ki-footer a { color: #9A4600 !important; }
   @media (max-width: 640px) {
       [data-testid="stMainBlockContainer"], .block-container {
           padding-left: 0.75rem !important; padding-right: 0.75rem !important;
+          /* Community Cloud floats its badge + avatar over the bottom of the screen;
+             this keeps our footer clear of them */
+          padding-bottom: 5.5rem !important;
       }
       [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 0.5rem !important; }
       [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 1 1 0 !important; }
       [data-testid="stMetricValue"] { font-size: 1.25rem !important; }
       [data-testid="stMetricLabel"] p { font-size: 0.75rem !important; }
       h4 { font-size: 1.05rem !important; }
-      .ki-contact { padding: 6px 10px; font-size: 16px; }
-  }
-  @media (max-width: 400px) {
-      .ki-contact-label { display: none; }            /* icon only on the narrowest phones */
   }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
-# Header: emblem + app name + contact link. Built in HTML so it stays on ONE row
+# Header: emblem + app name. Built in HTML so it stays on ONE row
 # on a phone (Streamlit columns would stack the logo above the name).
 # ---------------------------------------------------------------------------
 @st.cache_data
@@ -167,8 +161,6 @@ st.markdown(f"""
     <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:3.5px;color:#BF5700;
                 white-space:nowrap">KULDEEP INVESTMENTS</div>
   </div>
-  <a class="ki-contact" href="{CONTACT_LINK}" title="Contact us: {CONTACT_EMAIL}">
-    ✉<span class="ki-contact-label">&nbsp;Contact us</span></a>
 </div>""", unsafe_allow_html=True)
 
 PEAKS = {"3 months": 60, "YTD": "ytd", "1 year": 252, "5 years": None}
