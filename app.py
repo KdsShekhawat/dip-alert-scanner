@@ -72,6 +72,13 @@ if subscribers.is_configured() and ("confirm" in params or "unsubscribe" in para
 # ---------------------------------------------------------------------------
 # Data (cached: downloaded once, re-used for 12 hours)
 # ---------------------------------------------------------------------------
+# Memory matters: the free Streamlit server gives us roughly 690MB, and going over
+# it stops the app until someone reboots it. So:
+#   - big data uses st.cache_resource: ONE shared copy for all visitors
+#     (st.cache_data would hand every visitor their own copy)
+#   - every cache has max_entries, so old results get thrown away
+#   - rule results keep only the columns the page uses, in smaller number types
+# ---------------------------------------------------------------------------
 @st.cache_data(ttl=24 * 3600, show_spinner="Loading the S&P 500 and Nasdaq-100 lists...")
 def load_universe() -> tuple[dict[str, str], list[str]]:
     """({ticker: company name}, [names of any lists that failed to load])"""
@@ -79,26 +86,45 @@ def load_universe() -> tuple[dict[str, str], list[str]]:
     return universe, list(market_data.LOAD_WARNINGS)
 
 
-@st.cache_data(ttl=12 * 3600, show_spinner="Getting 5 years of prices for ~500 stocks. "
-                                             "First visit of the day takes 1-3 minutes...")
+@st.cache_resource(ttl=12 * 3600, max_entries=1,
+                   show_spinner="Getting 3 years of prices for ~500 stocks. "
+                                "First visit of the day takes 1-3 minutes...")
 def load_prices() -> dict[str, pd.DataFrame]:
-    return download_prices(list(load_universe()[0]) + ["SPY"], period="5y")
+    return download_prices(list(load_universe()[0]) + ["SPY"], period="3y")   # 3 years: enough for every rule, 40% less memory than 5
 
 
-@st.cache_data(ttl=24 * 3600, show_spinner="Checking company sizes...")
+@st.cache_data(ttl=24 * 3600, max_entries=50, show_spinner="Checking company sizes...")
 def load_market_caps(tickers: tuple[str, ...]) -> dict[str, float | None]:
     # Only looked up for stocks that already passed the rules: a few dozen, not 500
     return get_market_caps(list(tickers))
 
 
-@st.cache_data(ttl=12 * 3600, show_spinner=False)
+@st.cache_data(ttl=12 * 3600, max_entries=200, show_spinner=False)
 def load_details(ticker: str) -> dict:
     return get_company_details(ticker)
 
 
-@st.cache_data(ttl=12 * 3600, show_spinner="Applying the rules to every stock...")
+# The only columns the page reads (compute_signals makes ~22; we keep these)
+KEEP_COLUMNS = ["signal", "in_buy_zone", "ok_price", "ok_liquidity", "ok_trend", "ok_dip",
+                "ok_oversold", "ok_upside", "ok_reversal",
+                "close", "dip", "rsi", "upside_to_peak", "reward_risk", "dollar_vol20"]
+
+
+@st.cache_resource(ttl=12 * 3600, max_entries=3, show_spinner="Applying the rules to every stock...")
 def run_rules(settings: dict) -> dict[str, pd.DataFrame]:
-    return {t: compute_signals(df, settings) for t, df in load_prices().items() if t != "SPY"}
+    """
+    Rules applied to every stock for one combination of filter settings.
+    max_entries=3: only the 3 most recent combinations are kept in memory. Without
+    this limit, every slider move stored another ~80MB and the app crashed.
+    """
+    results = {}
+    for t, df in load_prices().items():
+        if t == "SPY":
+            continue
+        sig = compute_signals(df, settings)[KEEP_COLUMNS]
+        floats = sig.select_dtypes("float64").columns
+        results[t] = sig.astype({c: "float32" for c in floats})   # half the memory
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +164,11 @@ st.markdown("""
       [data-testid="stMetricValue"] { font-size: 1.25rem !important; }
       [data-testid="stMetricLabel"] p { font-size: 0.75rem !important; }
       h4 { font-size: 1.05rem !important; }
+      /* Number boxes: hide the +/- buttons on phones so two boxes fit side by side;
+         tapping the box opens the number keypad instead */
+      [data-testid="stNumberInputStepUp"], [data-testid="stNumberInputStepDown"] { display: none !important; }
+      [data-testid="stNumberInput"] input { padding-left: 0.6rem !important; padding-right: 0.4rem !important; }
+      [data-testid="stNumberInput"] [data-testid="stWidgetLabel"] p { white-space: nowrap; font-size: 0.85rem; }
   }
 </style>
 """, unsafe_allow_html=True)
@@ -199,14 +230,14 @@ st.markdown(
     '<p style="font-size:15px;line-height:1.5;color:#3A4651;margin:-4px 0 12px 0">'
     "Scans 500+ large US companies (S&amp;P 500 + Nasdaq-100) every day for strong businesses "
     "whose stock has fallen sharply and is starting to recover. Adjust the filters below, check "
-    "today's signals, test the rules on 5 years of history, or sign up for free email alerts.</p>",
+    "today's signals, test the rules on 3 years of history, or sign up for free email alerts.</p>",
     unsafe_allow_html=True)
 
-PEAKS = {"3 months": 60, "YTD": "ytd", "1 year": 252, "5 years": None}
+PEAKS = {"3 months": 60, "YTD": "ytd", "1 year": 252, "3 years": None}
 
 # Default values for every rule. "Reset to defaults" puts these back.
-DEFAULTS = {"peak": "3 months", "dip": (15, 40), "cap": 2,
-            "price": int(SETTINGS["min_price"]), "liq": int(SETTINGS["min_avg_dollar_volume"] / 1e6),
+DEFAULTS = {"peak": "YTD", "dip": (15, 40), "cap": 2,
+            "price": int(SETTINGS["min_price"]), "liq": SETTINGS["min_avg_dollar_volume"] / 1e6,
             "trend": SETTINGS["require_trend"], "oversold": SETTINGS["require_oversold"],
             "rsi": int(SETTINGS["rsi_oversold"]), "upside": int(SETTINGS["min_upside_to_peak"] * 100),
             "bounce": SETTINGS["require_reversal"]}
@@ -234,9 +265,9 @@ with st.container(border=True):
     # The other rules: tucked away so the phone screen stays clean
     with st.expander("More rules"):
         a, b = st.columns(2)
-        min_price = a.number_input("Min share price ($)", 1, 1000, step=5, key="price",
+        min_price = a.number_input("Min price ($)", 1, 1000, step=5, key="price",
                                    help="Skips cheap stocks.")
-        min_liq_m = b.number_input("Min traded per day ($M)", 0, 5000, step=10, key="liq",
+        min_liq_m = b.number_input("Min volume/day ($M)", 0.0, 5000.0, step=0.5, format="%.1f", key="liq",
                                    help="Average dollars traded daily. Higher = easier to buy and sell.")
         require_trend = st.toggle("Long-term trend still rising", key="trend",
                                   help="200-day average higher than 2 months ago: the dip is a pause "
@@ -251,11 +282,11 @@ with st.container(border=True):
                                      help="Off = list stocks while they may still be falling.")
         st.button("Reset to defaults", on_click=reset_rules)
 
-peak_choice = peak_choice or "3 months"         # segmented controls can be clicked "off"
+peak_choice = peak_choice or "YTD"         # segmented controls can be clicked "off"
 min_cap = min_cap_b * 1e9
 cap_label = "any size" if min_cap_b == 0 else f"${min_cap_b}B+"
 peak_label = {"3 months": "3-month", "YTD": "year-to-date", "1 year": "1-year",
-              "5 years": "5-year"}[peak_choice]
+              "3 years": "3-year"}[peak_choice]
 settings = {**SETTINGS, "peak_lookback": PEAKS[peak_choice],
             "min_dip": dip_range[0] / 100, "max_dip": dip_range[1] / 100,
             "min_price": float(min_price), "min_avg_dollar_volume": min_liq_m * 1e6,
@@ -275,6 +306,15 @@ def size_filter(tickers: list[str]) -> tuple[list[str], dict]:
         return tickers, {}
     caps = load_market_caps(tuple(sorted(tickers)))
     return [t for t in tickers if caps.get(t) is None or caps[t] >= min_cap], caps
+
+
+def fmt_dollars(value: float) -> str:
+    """500000 -> $500K, 2500000 -> $2.5M"""
+    if value >= 1e9:
+        return f"${value / 1e9:,.1f}B".replace(".0B", "B")
+    if value >= 1e6:
+        return f"${value / 1e6:,.1f}M".replace(".0M", "M")
+    return f"${value / 1e3:,.0f}K"
 
 
 def fmt_cap(value) -> str:
@@ -367,9 +407,9 @@ with tab_today:
         # Each check: (label, passed?, the actual number, is this rule switched on?)
         liq_now = all_sigs[pick]["dollar_vol20"].iloc[-1] / 1e6
         checks = [
-            (f"Share price ${min_price}+ and ${min_liq_m}M+ traded per day",
+            (f"Share price ${min_price}+ and {fmt_dollars(min_liq_m * 1e6)}+ traded per day",
              bool(last["ok_price"] and last["ok_liquidity"]),
-             f"${last['close']:.2f}, ${liq_now:,.0f}M/day", True),
+             f"${last['close']:.2f}, {fmt_dollars(liq_now * 1e6)}/day", True),
             ("Long-term trend still rising", bool(last["ok_trend"]),
              "200-day average vs 2 months ago", require_trend),
             (f"Dropped {lo}-{hi}% from its {peak_label} high", bool(last["ok_dip"]),
@@ -419,14 +459,14 @@ def play_trade(future: pd.DataFrame, entry: float, stop_pct: int, target_pct: in
 
 
 with tab_backtest:
-    st.write("How would the filters above have done over the last 5 years?")
+    st.write("How would the filters above have done over the last 3 years?")
     left, right = st.columns(2)
     stop_pct = left.slider("Stop-loss (%)", 3, 30, 12, help="Sell if it falls this much below your buy price.")
     target_pct = right.slider("Profit target (%)", 3, 50, 15, help="Sell when it gains this much.")
 
     if st.button("Run backtest", type="primary", width="stretch"):
         trades = []
-        with st.spinner("Replaying 5 years..."):
+        with st.spinner("Replaying 3 years..."):
             for t, sig in all_sigs.items():
                 df = prices[t]
                 for day in sig.index[sig["signal"]]:
@@ -443,7 +483,7 @@ with tab_backtest:
                 keep, _ = size_filter(sorted(res["Ticker"].unique()))
                 res = res[res["Ticker"].isin(keep)]
         if not trades or res.empty:
-            st.warning("No signals in 5 years with these filters. Try a wider drop size.")
+            st.warning("No signals in 3 years with these filters. Try a wider drop size.")
         else:
             res = (res.sort_values("Reward/risk", ascending=False)
                       .groupby("Date").head(TOP_N).sort_values("Date"))
@@ -455,7 +495,7 @@ with tab_backtest:
             b.metric("S&P 500, any 4 weeks", f"{spy_fwd:+.1%}",
                      help="The 'do nothing' baseline. Good rules beat this.")
             a, b, c = st.columns(3)
-            a.metric("Signals", len(res), f"{len(res) / 60:.1f}/month", delta_color="off")
+            a.metric("Signals", len(res), f"{len(res) / 36:.1f}/month", delta_color="off")
             b.metric("Hit target", f"{(res['Outcome'] == 'Target').mean():.0%}")
             c.metric("Hit stop", f"{(res['Outcome'] == 'Stopped').mean():.0%}")
 
@@ -495,7 +535,7 @@ with tab_alerts:
     st.subheader("Get buy signals by email")
     st.write("On days the scanner finds a buy signal, you'll get one email after the market closes "
              "with up to 5 stocks. No account needed, and every email has an unsubscribe link.")
-    st.caption("Alerts use the default filters (15-40% drop from the 3-month high). Not financial advice.")
+    st.caption("Alerts use the default filters (15-40% drop from the year-to-date high). Not financial advice.")
 
     if not subscribers.is_configured():
         st.info("Email sign-up isn't switched on yet. The site owner needs to add the "
@@ -533,7 +573,7 @@ with tab_alerts:
 with st.expander("📖 How to use this app"):
     st.markdown("""
 **1. Set your filters.** Choose how far a stock should have dropped, measured from its high
-(3 months, YTD, 1 year, or 5 years), and the minimum company size. Tap **More rules** for
+(3 months, YTD, 1 year, or 3 years), and the minimum company size. Tap **More rules** for
 advanced options; **Reset to defaults** undoes everything.
 
 **2. Check the Today tab.**

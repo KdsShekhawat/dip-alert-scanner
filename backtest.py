@@ -1,7 +1,7 @@
 """
 backtest.py — "how would these rules have done in the past?"
 
-For every day in the last 5 years where a signal fired, it plays out a trade
+For every day in the last 3 years where a signal fired, it plays out a trade
 for every COMBINATION of stop-loss and profit target over the next 20 trading
 days (~4 weeks):
   - price touches the target first -> you win the target %
@@ -29,7 +29,7 @@ from signals import SETTINGS, compute_signals
 HOLD_DAYS = 20                        # about 4 weeks
 TARGETS = [0.08, 0.10, 0.15, 0.20]    # profit targets to compare
 MAX_ALERTS_PER_DAY = 5                # same top-5 cap as scanner.py
-CACHE_FILE = "price_cache_5y.pkl"
+CACHE_FILE = "price_cache_3y.pkl"
 
 
 def stop_prices(entry: float, row: pd.Series) -> dict[str, float]:
@@ -97,7 +97,7 @@ def main():
     tickers = get_universe()
     if args.refresh:
         print("Fresh download requested.")
-    prices = download_prices(tickers, period="5y", cache_file=CACHE_FILE,
+    prices = download_prices(tickers, period="3y", cache_file=CACHE_FILE,
                              max_age_hours=0 if args.refresh else 20)
 
     rows = []
@@ -111,7 +111,7 @@ def main():
     # ----- Market-wide drop vs stock fell alone (uses ALL signals, no cap) -----
     # Market dip = how far SPY was below its 3-month high, measured the same
     # way as a stock's dip. Small = the stock fell on its own news.
-    spy = download_prices(["SPY"], period="5y")["SPY"]["Close"]
+    spy = download_prices(["SPY"], period="3y")["SPY"]["Close"]
     spy_dip = 1 - spy.rolling(10).min() / spy.rolling(60).max()
     spy_dip.index = spy_dip.index.date
     res["market_dip"] = res["date"].map(spy_dip)
@@ -135,7 +135,7 @@ def main():
 
     # ----- Which "high" should the drop be measured from? -----
     peak_options = {"3-month high": 60, "Year-to-date high": "ytd", "1-year high": 252,
-                    "5-year high (all data)": None}
+                    "3-year high (all data)": None}
     print("\n===== Drop measured from which high? (all signals, stop = Fixed -12%) =====\n")
     table = []
     for label, lookback in peak_options.items():
@@ -164,8 +164,8 @@ def main():
     res = res.merge(keep, on=["ticker", "date"])
     n = len(keep)
 
-    print(f"\n===== Backtest: {n} signals over 5 years (top {MAX_ALERTS_PER_DAY} per day) =====")
-    print(f"Signals per month (avg): {n / 60:.1f}   "
+    print(f"\n===== Backtest: {n} signals over 3 years (top {MAX_ALERTS_PER_DAY} per day) =====")
+    print(f"Signals per month (avg): {n / 36:.1f}   "
           f"Days with more than {MAX_ALERTS_PER_DAY} signals: {busy_days}")
     print(f"Average 20-day return if just held: "
           f"{res.drop_duplicates(['ticker', 'date'])['ret_20d'].mean():+.1%}")

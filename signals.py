@@ -22,8 +22,8 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 SETTINGS = {
     # Layer 1: "strong company" checks we can do from price data alone
-    "min_price": 20.0,                 # no cheap/penny-ish stocks
-    "min_avg_dollar_volume": 50e6,     # $50M traded per day -> easy to buy/sell
+    "min_price": 5.0,                  # under $5 = "penny stock" by the usual definition
+    "min_avg_dollar_volume": 0.5e6,    # $500K traded per day -> easy enough to buy/sell
 
     # Layer 2: long-term trend still healthy
     "sma_long": 200,                   # 200-day average = the long-term trend line
@@ -31,7 +31,7 @@ SETTINGS = {
     "max_below_sma_long": 0.15,        # allow price up to 15% below the 200-day avg
 
     # Layer 3: sharp short-term drop + oversold
-    "peak_lookback": 60,               # drop measured from: 60 = 3-month high, 252 = 1-year, None = all data, "ytd" = since Jan 1
+    "peak_lookback": "ytd",            # drop measured from: "ytd" = since Jan 1, 60 = 3-month high, 252 = 1-year, None = all data
     "dip_window": 10,                  # the drop's low must be within the last 10 days
     "min_dip": 0.15,                   # dropped at least 15% from the recent high...
     "max_dip": 0.40,                   # ...but not more than 40% (that may be broken)
