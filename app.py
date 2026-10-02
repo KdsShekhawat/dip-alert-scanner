@@ -32,7 +32,8 @@ TOP_N = 5                                       # max signals shown per day
 HOLD_DAYS = 20                                  # backtest: sell after ~4 weeks at most
 
 st.set_page_config(page_title="Dip Alert & Scanner · Kuldeep Investments",
-                   page_icon=str(ASSETS / "favicon.png"), layout="centered")
+                   page_icon=str(ASSETS / "favicon.png") if (ASSETS / "favicon.png").exists() else "🛡️",
+                   layout="centered")
 
 # Streamlit secrets (on the cloud, or .streamlit/secrets.toml locally) -> environment
 # variables, so subscribers.py and mailer.py read them the same way the scanner does.
@@ -148,13 +149,43 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 @st.cache_data
 def emblem_base64() -> str:
-    return base64.b64encode((ASSETS / "favicon.png").read_bytes()).decode()
+    return base64.b64encode(EMBLEM_SVG.encode()).decode()
+
+
+# The shield emblem, built into the code so the header never depends on an image file
+EMBLEM_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Kuldeep Investments emblem">
+  <!-- crossed talwars (curved swords) behind the shield -->
+  <g stroke="#1F2A36" stroke-width="2" stroke-linejoin="round">
+    <path d="M40 174 Q 64 96 158 22 Q 132 74 54 182 Z" fill="#9AA3AB"/>
+    <path d="M160 174 Q 136 96 42 22 Q 68 74 146 182 Z" fill="#9AA3AB"/>
+  </g>
+  <g fill="#D4A017" stroke="#1F2A36" stroke-width="2">
+    <rect x="28" y="168" width="34" height="8" rx="3" transform="rotate(-38 45 172)"/>
+    <rect x="138" y="168" width="34" height="8" rx="3" transform="rotate(38 155 172)"/>
+    <circle cx="36" cy="186" r="6"/>
+    <circle cx="164" cy="186" r="6"/>
+  </g>
+  <!-- the dhal (round Rajput shield) -->
+  <circle cx="100" cy="104" r="62" fill="#1F2A36" stroke="#D4A017" stroke-width="6"/>
+  <circle cx="100" cy="104" r="53" fill="none" stroke="#BF5700" stroke-width="2"/>
+  <!-- four brass bosses -->
+  <g fill="#D4A017" stroke="#8A6A0C" stroke-width="1.5">
+    <circle cx="66" cy="70" r="5"/><circle cx="134" cy="70" r="5"/>
+    <circle cx="66" cy="138" r="5"/><circle cx="134" cy="138" r="5"/>
+  </g>
+  <!-- rising arrow climbing to the lone star -->
+  <polyline points="74,130 90,113 103,121 124,96" fill="none" stroke="#BF5700" stroke-width="7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="116,88 134,84 130,102" fill="#BF5700"/>
+  <polygon fill="#F5EBDD" points="112,48 117.3,62.7 132.9,63.2 120.6,72.8 124.9,87.8 112,79 99.1,87.8 103.4,72.8 91.1,63.2 106.7,62.7"
+           transform="translate(-12,-2)"/>
+</svg>"""
 
 
 st.markdown(f"""
 <div style="display:flex;align-items:center;gap:10px;padding:2px 0 10px 0;
             border-bottom:3px solid #D4A017;margin-bottom:12px">
-  <img src="data:image/png;base64,{emblem_base64()}" alt="" style="width:52px;height:52px;flex-shrink:0">
+  <img src="data:image/svg+xml;base64,{emblem_base64()}" alt="" style="width:52px;height:52px;flex-shrink:0">
   <div style="line-height:1.15;min-width:0">
     <div style="font-family:Georgia,serif;font-weight:700;font-size:clamp(19px,5.6vw,32px);
                 color:#1F2A36;white-space:nowrap">Dip Alert &amp; Scanner</div>
