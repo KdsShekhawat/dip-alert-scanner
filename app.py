@@ -257,8 +257,12 @@ tab_today, tab_backtest, tab_alerts = st.tabs(["Today", "Backtest", "Get alerts"
 # Tab 1: today's signals as cards + compact watchlist
 # ---------------------------------------------------------------------------
 with tab_today:
-    st.caption(f"Scanning {len(all_sigs)} stocks (S&P 500 + Nasdaq-100) · prices up to "
-               f"{last_date:%a %b %d, %Y} · drop from {peak_label} high · not financial advice")
+    # Small print: what's being scanned and how fresh the prices are
+    st.markdown(
+        f'<p style="font-size:12px;line-height:1.4;color:#6B7680;margin:0 0 6px 0">'
+        f"Scanning {len(all_sigs)} stocks (S&amp;P 500 + Nasdaq-100) · prices up to "
+        f"{last_date:%a %b %d, %Y} · drop from {peak_label} high · not financial advice</p>",
+        unsafe_allow_html=True)
     if list_warnings:
         st.warning(f"Couldn't load the {' and '.join(list_warnings)} list today, so those stocks "
                    f"aren't being scanned. It retries automatically tomorrow.")
@@ -299,22 +303,26 @@ with tab_today:
         # Watchlist = in the buy zone but NOT bounced yet (bounced ones were already alerted)
         watch_tickers, wcaps = size_filter([t for t in todays("in_buy_zone")
                                             if t not in signal_tickers and not all_sigs[t].iloc[-1]["ok_reversal"]])
-        st.subheader(f"Watchlist: {len(watch_tickers)}")
-        st.caption("In the buy zone but no bounce yet. They may still be falling.")
-        if watch_tickers:
-            watch = pd.DataFrame([{
-                "Ticker": yahoo_url(t), "Company": names.get(t, t),
-                "Price": all_sigs[t].iloc[-1]["close"], "Drop": all_sigs[t].iloc[-1]["dip"],
-            } for t in watch_tickers])
-            st.dataframe(
-                watch, hide_index=True, width="stretch",
-                column_config={
-                    "Ticker": st.column_config.LinkColumn(
-                        "Ticker", display_text=r"https://finance\.yahoo\.com/quote/(.*)", width="small"),
-                    "Company": st.column_config.TextColumn(width="medium"),
-                    "Price": st.column_config.NumberColumn(format="$%.2f", width="small"),
-                    "Drop": st.column_config.NumberColumn(format="percent", width="small"),
-                })
+        # Collapsed by default so the whole page fits on one phone screen; tap to open
+        n_watch = len(watch_tickers)
+        with st.expander(f"👀 Watchlist: {n_watch} stock{'' if n_watch == 1 else 's'} waiting for a bounce"):
+            st.caption("In the buy zone but no bounce yet. They may still be falling.")
+            if not watch_tickers:
+                st.write("Nothing on the watchlist today.")
+            else:
+                watch = pd.DataFrame([{
+                    "Ticker": yahoo_url(t), "Company": names.get(t, t),
+                    "Price": all_sigs[t].iloc[-1]["close"], "Drop": all_sigs[t].iloc[-1]["dip"],
+                } for t in watch_tickers])
+                st.dataframe(
+                    watch, hide_index=True, width="stretch",
+                    column_config={
+                        "Ticker": st.column_config.LinkColumn(
+                            "Ticker", display_text=r"https://finance\.yahoo\.com/quote/(.*)", width="small"),
+                        "Company": st.column_config.TextColumn(width="medium"),
+                        "Price": st.column_config.NumberColumn(format="$%.2f", width="small"),
+                        "Drop": st.column_config.NumberColumn(format="percent", width="small"),
+                    })
 
     # ----- Check any stock: shows WHY a stock is or isn't listed -----
     st.subheader("Check any stock")
@@ -435,14 +443,6 @@ with tab_backtest:
                         "Result": st.column_config.NumberColumn(format="percent")})
             st.caption("Not included: trading costs, taxes, and survivorship bias (only today's "
                        "index members, at today's size, are tested). Real results would be worse.")
-
-    with st.expander("Use these filters for the daily email (owner only)"):
-        changed = {k: v for k, v in settings.items() if SETTINGS.get(k) != v}
-        if changed:
-            st.write("Replace these lines in `SETTINGS` at the top of `signals.py`:")
-            st.code("\n".join(f'    "{k}": {v!r},' for k, v in changed.items()), language="python")
-        else:
-            st.write("The daily email already uses these filters.")
 
 
 # ---------------------------------------------------------------------------
