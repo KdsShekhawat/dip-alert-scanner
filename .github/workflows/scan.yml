@@ -1,0 +1,27 @@
+name: Daily dip scanner
+
+on:
+  schedule:
+    # 21:37 UTC, Monday-Friday = 4:37 PM Central (summer) / 3:37 PM Central (winter),
+    # always after the 3:00 PM Central market close.
+    - cron: "37 21 * * 1-5"
+  workflow_dispatch:   # adds a "Run workflow" button so you can test it any time
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scanner.py
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          APP_URL: ${{ secrets.APP_URL }}
