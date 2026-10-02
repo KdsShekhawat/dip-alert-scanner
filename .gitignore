@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+backtest_results.csv
+*.pkl
+.streamlit/secrets.toml
