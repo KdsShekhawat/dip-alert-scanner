@@ -163,6 +163,14 @@ st.markdown(f"""
   </div>
 </div>""", unsafe_allow_html=True)
 
+# One-paragraph intro for first-time visitors
+st.markdown(
+    '<p style="font-size:15px;line-height:1.5;color:#3A4651;margin:-4px 0 12px 0">'
+    "Scans 500+ large US companies (S&amp;P 500 + Nasdaq-100) every day for strong businesses "
+    "whose stock has fallen sharply and is starting to recover. Adjust the filters below, check "
+    "today's signals, test the rules on 5 years of history, or sign up for free email alerts.</p>",
+    unsafe_allow_html=True)
+
 PEAKS = {"3 months": 60, "YTD": "ytd", "1 year": 252, "5 years": None}
 
 # Default values for every rule. "Reset to defaults" puts these back.
@@ -484,6 +492,44 @@ with tab_alerts:
                                    "and click the confirmation link.")
                 except Exception:
                     st.error("Something went wrong saving your email. Please try again in a minute.")
+
+
+# ---------------------------------------------------------------------------
+# Mini guide (collapsed, so it doesn't crowd the phone screen)
+# GUIDE_VIDEO_URL: optional YouTube link added in Streamlit secrets; the video
+# appears here automatically once it's set, no code change needed.
+# ---------------------------------------------------------------------------
+with st.expander("📖 How to use this app"):
+    st.markdown("""
+**1. Set your filters.** Choose how far a stock should have dropped, measured from its high
+(3 months, YTD, 1 year, or 5 years), and the minimum company size. Tap **More rules** for
+advanced options; **Reset to defaults** undoes everything.
+
+**2. Check the Today tab.**
+- **Buy signals:** stocks that passed every rule today. Tap a ticker to open it on Yahoo
+  Finance, or **Why did it drop?** for recent news.
+- **Watchlist:** stocks in the buy zone that haven't started bouncing yet.
+- **Check any stock:** type any ticker to see which rules it passes or fails.
+
+**3. Test it in the Backtest tab.** Pick a stop-loss and profit target, tap **Run backtest**,
+and compare the result with simply holding the S&P 500.
+
+**4. Get alerts.** Enter your email on the **Get alerts** tab and confirm it. You'll get an
+email on days with a buy signal.
+
+**Reading a signal card**
+- **Drop:** how far it fell from its high.
+- **Room to high:** how much it could gain climbing back.
+- **RSI:** how heavily it was sold (under 30 = very oversold).
+- **Reward/risk:** potential gain compared to potential loss.
+
+**Always read why a stock dropped before buying.** A short-term scare can be a chance;
+a broken business is a trap. For education only, not financial advice.
+""")
+    video_url = os.environ.get("GUIDE_VIDEO_URL", "").strip()
+    if video_url:
+        st.markdown("**▶ Watch the video guide**")
+        st.video(video_url)
 
 
 # ---------------------------------------------------------------------------
