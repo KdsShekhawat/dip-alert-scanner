@@ -1,0 +1,19 @@
+# Kuldeep Investments theme
+[theme]
+base = "light"
+primaryColor = "#BF5700"
+backgroundColor = "#FBF7F1"
+secondaryBackgroundColor = "#F1E6D6"
+textColor = "#1F2A36"
+linkColor = "#9A4600"
+borderColor = "#E2D3BD"
+font = "sans-serif"
+headingFont = "serif"
+chartCategoricalColors = ["#BF5700", "#1F2A36", "#D4A017", "#5F7A8A", "#8A6A0C"]
+
+[server]
+headless = true
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
